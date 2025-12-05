@@ -122,10 +122,50 @@ void removeLine() {
                 for (int j = 0; j < W - 1; j++) board[ii][j] = board[ii - 1][j];
             i++;
             draw();
-            _sleep(200);
+            Sleep(200);
         }
     }
 }
+
+bool canPlaceBlockAt(int nx, int ny, const char block[4][4]) {
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            if (block[i][j] != ' ') {
+                int tx = nx + j;
+                int ty = ny + i;
+
+                if (tx < 1 || tx >= W - 1 || ty >= H - 1)
+                    return false;
+
+                if (ty >= 0 && board[ty][tx] != ' ')
+                    return false;
+            }
+        }
+    }
+    return true;
+}
+
+void rotateBlockCW() {
+    char temp[4][4];
+    char rotated[4][4];
+
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            temp[i][j] = blocks[b][i][j];
+
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            rotated[i][j] = temp[3 - j][i];
+        }
+    }
+
+    if (canPlaceBlockAt(x, y, rotated)) {
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j)
+                blocks[b][i][j] = rotated[i][j];
+    }
+}
+
 
 int main()
 {
@@ -135,8 +175,8 @@ int main()
     initBoard();
     while (1) {
         boardDelBlock();
-        if (kbhit()) {
-            char c = getch();
+        if (_kbhit()) {
+            char c = _getch();
             if (c == 'a' && canMove(-1, 0)) x--;
             if (c == 'd' && canMove(1, 0)) x++;
             if (c == 'x' && canMove(0, 1))  y++;
@@ -150,7 +190,7 @@ int main()
         }
         block2Board();
         draw();
-        _sleep(200);
+        Sleep(200);
     }
     return 0;
 }
