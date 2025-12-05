@@ -39,3 +39,15 @@
 
 # debug information files
 *.dwo
+
+# File over 100 MB
+.vs/
+*.vcxproj.user
+*.suo
+*.ipch
+*.db
+*.tlog
+*.log
+Debug/
+Release/
+x64/
