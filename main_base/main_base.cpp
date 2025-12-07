@@ -201,7 +201,38 @@ void rotateBlock() {
         }
     }
 }
+void setColor(char ch) {
+    switch (ch) {
+    case 'I': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 11); break;
+    case 'O': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 14); break;
+    case 'T': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 13); break;
+    case 'S': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 10); break;
+    case 'Z': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12); break;
+    case 'J': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 9); break;
+    case 'L': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 6); break;
+    case '#': SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 8); break;
+    default: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7); break;
+    }
+}
 
+void resetColor() {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+}
+
+
+char curBlock[4][4];
+
+void loadCurBlock() {
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            curBlock[i][j] = blocks[b][i][j];
+}
+
+void saveCurBlockToBlocks() {
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            blocks[b][i][j] = curBlock[i][j];
+}
 
 int main()
 {
