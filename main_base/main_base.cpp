@@ -56,6 +56,7 @@ char blocks[][4][4] = {
 };
 
 int x = 4, y = 0, b = 1;
+int nextB = 0;   // <-- KHỐI TIẾP THEO
 int score = 0;   // <-- Thêm tính điểm
 
 void loadHighScore() {
@@ -102,6 +103,24 @@ void initBoard() {
                 board[i][j] = ' ';
 }
 
+void drawNextBlock() {
+    int startX = W + 5; // vẽ bên phải board
+    int startY = 5;
+
+    gotoxy(startX, startY - 2);
+    cout << "Next Block:";
+
+    for (int i = 0; i < 4; i++) {
+        gotoxy(startX, startY + i);
+        for (int j = 0; j < 4; j++) {
+            if (blocks[nextB][i][j] != ' ')
+                cout << blocks[nextB][i][j];
+            else
+                cout << ' ';
+        }
+    }
+}
+
 void draw() {
     gotoxy(0, 0);
     cout << "Controls:\n";
@@ -110,11 +129,12 @@ void draw() {
     cout << "W: Rotate\n";
     cout << "X: Move Down\n";
     cout << "Q: Quit\n";
-    cout << "Score: " << score << "    High Score: " << highScore << "\n\n";
+    cout << "Score: " << score << "\nHigh Score: " << highScore << "\n\n";
 
     for (int i = 0; i < H; i++, cout << endl)
         for (int j = 0; j < W; j++)
             cout << board[i][j];
+    drawNextBlock();
 }
 
 bool canMove(int dx, int dy) {
@@ -212,11 +232,11 @@ void drawGhost() {
                     board[ghostY + i][x + j] = '.';
 }
 
-
 int main() {
     srand(time(0));
-    loadHighScore();
     b = rand() % 8;
+    nextB = rand() % 8;
+    loadHighScore();
     system("cls");
     initBoard();
 
@@ -243,7 +263,8 @@ int main() {
             // Tạo block mới
             x = 5;
             y = 0;
-            b = rand() % 8;
+            b = nextB;
+            nextB = rand() % 8;
 
             // --- GAME OVER ---
             for (int i = 0; i < 4; i++)
