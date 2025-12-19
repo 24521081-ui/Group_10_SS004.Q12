@@ -17,7 +17,6 @@ const int LEFT_UI_WIDTH = 250;
 const int RIGHT_UI_WIDTH = 250;
 const int OFFSET_X = LEFT_UI_WIDTH;
 
-
 const char BLOCK_SHAPES[8][4][4] = {
     {{' ','I',' ',' '}, {' ','I',' ',' '}, {' ','I',' ',' '}, {' ','I',' ',' '}},
     {{' ',' ',' ',' '}, {' ','O','O',' '}, {' ','O','O',' '}, {' ',' ',' ',' '}},
@@ -30,15 +29,20 @@ const char BLOCK_SHAPES[8][4][4] = {
 };
 
 
+struct Particle {
+    Vector2f pos;
+    Vector2f vel;
+    float lifetime;
+    Color color;
+};
+
 class TetrisGame {
 private:
-
     RenderWindow window;
     Font font;
     Texture bgTexture;
     Sprite bgSprite;
     bool hasBackground;
-
 
     char board[H][W];
     char currentBlock[4][4];
@@ -60,6 +64,9 @@ private:
 
     bool isMuted = false;
 
+
+    vector<Particle> particles;
+
     Color getSfmlColor(char c, int alpha = 255) {
         switch (c) {
         case 'I': return Color(0, 255, 255, alpha);
@@ -75,6 +82,22 @@ private:
     }
 
 
+    void createParticles(int gridY) {
+        for (int j = 1; j < W - 1; j++) {
+
+            Color cellColor = getSfmlColor(board[gridY][j]);
+            for (int p = 0; p < 10; p++) {
+                Particle newP;
+                newP.pos = Vector2f(OFFSET_X + j * CELL_SIZE + CELL_SIZE / 2, gridY * CELL_SIZE + CELL_SIZE / 2);
+                
+                newP.vel = Vector2f((rand() % 200 - 100) / 20.0f, (rand() % 200 - 100) / 20.0f);
+                newP.lifetime = 255.0f;
+                newP.color = cellColor;
+                particles.push_back(newP);
+            }
+        }
+    }
+
     void loadHighScore() {
         ifstream f("highscore.txt");
         if (f.is_open()) { f >> highScore; f.close(); }
@@ -86,14 +109,11 @@ private:
         if (f.is_open()) { f << highScore; f.close(); }
     }
 
-
     void initBoard() {
         for (int i = 0; i < H; i++)
             for (int j = 0; j < W; j++)
-                if (i == H - 1 || j == 0 || j == W - 1)
-                    board[i][j] = '#';
-                else
-                    board[i][j] = ' ';
+                if (i == H - 1 || j == 0 || j == W - 1) board[i][j] = '#';
+                else board[i][j] = ' ';
     }
 
     void generateNextData() {
@@ -108,7 +128,6 @@ private:
         for (int i = 0; i < 4; i++)
             for (int j = 0; j < 4; j++)
                 currentBlock[i][j] = nextBlock[i][j];
-
         x = W / 2 - 2;
         y = 0;
         generateNextData();
@@ -162,6 +181,7 @@ private:
                 if (board[i][j] == ' ') { full = false; break; }
 
             if (full) {
+                createParticles(i); 
                 linesCleared++;
                 for (int ii = i; ii > 0; ii--)
                     for (int jj = 1; jj < W - 1; jj++)
@@ -186,19 +206,13 @@ private:
         return ghostY;
     }
 
-    bool checkGameOver() {
-        return !canMove(0, 0);
-    }
-
+    bool checkGameOver() { return !canMove(0, 0); }
 
     void drawTile(int gridX, int gridY, char type, int alpha = 255, bool isGhost = false) {
         if (type == ' ') return;
-
         RectangleShape rect(Vector2f(CELL_SIZE - 2, CELL_SIZE - 2));
         rect.setPosition(OFFSET_X + gridX * CELL_SIZE + 1, gridY * CELL_SIZE + 1);
-
         Color c = getSfmlColor(type, alpha);
-
         if (isGhost) {
             rect.setFillColor(Color::Transparent);
             rect.setOutlineThickness(2);
@@ -212,6 +226,7 @@ private:
         window.draw(rect);
     }
 
+
     void drawKeyGuide(float px, float py, string key, string description) {
         RectangleShape keyRect(Vector2f(40, 40));
         keyRect.setPosition(px, py);
@@ -219,20 +234,13 @@ private:
         keyRect.setOutlineThickness(2);
         keyRect.setOutlineColor(Color(150, 150, 150, 200));
 
-        Text keyText;
-        keyText.setFont(font);
-        keyText.setString(key);
-        keyText.setCharacterSize(20);
+        Text keyText(key, font, 20);
         keyText.setFillColor(Color::Yellow);
-
-        FloatRect textBounds = keyText.getLocalBounds();
-        keyText.setOrigin(textBounds.left + textBounds.width / 2.0f, textBounds.top + textBounds.height / 2.0f);
+        FloatRect tb = keyText.getLocalBounds();
+        keyText.setOrigin(tb.left + tb.width / 2.0f, tb.top + tb.height / 2.0f);
         keyText.setPosition(px + 20, py + 20);
 
-        Text descText;
-        descText.setFont(font);
-        descText.setString(description);
-        descText.setCharacterSize(18);
+        Text descText(description, font, 18);
         descText.setFillColor(Color::White);
         descText.setPosition(px + 55, py + 8);
 
@@ -242,10 +250,7 @@ private:
     }
 
     void drawNextBlockPreview(float startX, float startY) {
-        Text nextText;
-        nextText.setFont(font);
-        nextText.setString("Next Block:");
-        nextText.setCharacterSize(22);
+        Text nextText("Next Block:", font, 22);
         nextText.setFillColor(Color::Cyan);
         nextText.setPosition(startX, startY);
         window.draw(nextText);
@@ -257,185 +262,98 @@ private:
         box.setOutlineColor(Color(100, 100, 100));
         window.draw(box);
 
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
                 if (nextBlock[i][j] != ' ') {
                     RectangleShape rect(Vector2f(CELL_SIZE - 2, CELL_SIZE - 2));
                     rect.setPosition(startX + j * CELL_SIZE + 1, (startY + 30) + i * CELL_SIZE + 1);
                     rect.setFillColor(getSfmlColor(nextBlock[i][j]));
-                    rect.setOutlineThickness(1);
-                    rect.setOutlineColor(Color(255, 255, 255, 100));
                     window.draw(rect);
                 }
-            }
-        }
     }
 
     void drawUI() {
-
         float leftX = 15;
-
-
-        Text groupName;
-        groupName.setFont(font);
-        groupName.setString("GROUP 10 - TETRIS");
-        groupName.setCharacterSize(22);
-        groupName.setFillColor(Color(255, 0, 255));
+        Text groupName("GROUP 10 - TETRIS", font, 22);
         groupName.setStyle(Text::Bold);
+        groupName.setFillColor(Color(255, 0, 255));
         groupName.setPosition(leftX, 40);
-
-        Text groupShadow = groupName;
-        groupShadow.setFillColor(Color(50, 0, 50));
-        groupShadow.setPosition(leftX + 2, 42);
-
-        window.draw(groupShadow);
+        Text shadow = groupName;
+        shadow.setFillColor(Color(50, 0, 50));
+        shadow.setPosition(leftX + 2, 42);
+        window.draw(shadow);
         window.draw(groupName);
 
-        Text lblGuide;
-        lblGuide.setFont(font);
-        lblGuide.setString("CONTROLS");
-        lblGuide.setCharacterSize(20);
+        Text lblGuide("CONTROLS", font, 20);
         lblGuide.setFillColor(Color(200, 200, 200));
-        lblGuide.setStyle(Text::Bold);
         lblGuide.setPosition(leftX, 100);
         window.draw(lblGuide);
 
-        float guideY = 140;
-        float gap = 55;
-        drawKeyGuide(leftX, guideY + gap * 0, "W", "Rotate");
-        drawKeyGuide(leftX, guideY + gap * 1, "A", "Move Left");
-        drawKeyGuide(leftX, guideY + gap * 2, "D", "Move Right");
-        drawKeyGuide(leftX, guideY + gap * 3, "S", "Soft Drop");
-        drawKeyGuide(leftX, guideY + gap * 4, "Q", "Quit Game");
-        drawKeyGuide(leftX, guideY + gap * 5, "M", "Mute/Unmute");
+        drawKeyGuide(leftX, 140, "W", "Rotate");
+        drawKeyGuide(leftX, 195, "A", "Move Left");
+        drawKeyGuide(leftX, 250, "D", "Move Right");
+        drawKeyGuide(leftX, 305, "S", "Soft Drop");
+        drawKeyGuide(leftX, 360, "Q", "Quit Game");
+        drawKeyGuide(leftX, 415, "M", "Mute/Unmute");
 
-
-        float rightGap = 35;
-        float rightX = OFFSET_X + (W * CELL_SIZE) + rightGap;
-
-        Text title;
-        title.setFont(font);
-        title.setString("STATISTICS");
-        title.setCharacterSize(25);
-        title.setFillColor(Color(0, 255, 255));
-        title.setStyle(Text::Bold);
+        float rightX = OFFSET_X + (W * CELL_SIZE) + 35;
+        Text title("STATISTICS", font, 25);
+        title.setFillColor(Color::Cyan);
         title.setPosition(rightX, 30);
         window.draw(title);
 
-        Text txtScore, txtHigh;
-        txtScore.setFont(font); txtScore.setCharacterSize(22); txtScore.setFillColor(Color::White);
-        txtHigh.setFont(font);  txtHigh.setCharacterSize(22);  txtHigh.setFillColor(Color(200, 200, 200));
-
-        txtScore.setString("Score: " + to_string(score));
+        Text txtScore("Score: " + to_string(score), font, 22);
         txtScore.setPosition(rightX, 80);
-
-        txtHigh.setString("Best : " + to_string(highScore));
-        txtHigh.setPosition(rightX, 110);
-
         window.draw(txtScore);
-        window.draw(txtHigh);
 
-        RectangleShape line(Vector2f(200, 2));
-        line.setPosition(rightX, 150);
-        line.setFillColor(Color(100, 100, 100, 180));
-        window.draw(line);
+        Text txtHigh("Best : " + to_string(highScore), font, 22);
+        txtHigh.setPosition(rightX, 110);
+        window.draw(txtHigh);
 
         drawNextBlockPreview(rightX, 170);
     }
 
     void drawGameOver() {
-        int wWidth = window.getSize().x;
-        int wHeight = window.getSize().y;
-
-        RectangleShape gameOverOverlay(Vector2f(wWidth, wHeight));
-        gameOverOverlay.setFillColor(Color(0, 0, 0, 200));
-        window.draw(gameOverOverlay);
-
-        Text overText;
-        overText.setFont(font);
-        overText.setString("GAME OVER");
-        overText.setCharacterSize(50);
+        RectangleShape overlay(Vector2f(window.getSize().x, window.getSize().y));
+        overlay.setFillColor(Color(0, 0, 0, 200));
+        window.draw(overlay);
+        Text overText("GAME OVER", font, 50);
         overText.setFillColor(Color::Red);
-        overText.setStyle(Text::Bold);
-        overText.setOutlineThickness(2);
-        overText.setOutlineColor(Color::White);
-
-        FloatRect textRect = overText.getLocalBounds();
-        overText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
-        overText.setPosition(wWidth / 2.0f, wHeight / 2.0f);
+        FloatRect tr = overText.getLocalBounds();
+        overText.setOrigin(tr.width / 2, tr.height / 2);
+        overText.setPosition(window.getSize().x / 2, window.getSize().y / 2);
         window.draw(overText);
-
-        Text quitText;
-        quitText.setFont(font);
-        quitText.setString("Press Q to Quit");
-        quitText.setCharacterSize(20);
-        quitText.setFillColor(Color::White);
-        FloatRect qRect = quitText.getLocalBounds();
-        quitText.setOrigin(qRect.left + qRect.width / 2.0f, qRect.top + qRect.height / 2.0f);
-        quitText.setPosition(wWidth / 2.0f, wHeight / 2.0f + 50);
-        window.draw(quitText);
     }
 
 public:
-
     TetrisGame() {
         int windowWidth = LEFT_UI_WIDTH + (W * CELL_SIZE) + RIGHT_UI_WIDTH;
         int windowHeight = H * CELL_SIZE;
-
-
         window.create(VideoMode(windowWidth, windowHeight), "Group 10 - Tetris");
         window.setFramerateLimit(60);
 
-
-        if (!font.loadFromFile("arial.ttf")) {
-            cout << "LOI: Khong tim thay file arial.ttf!" << endl;
-        }
-
+        font.loadFromFile("arial.ttf");
         hasBackground = bgTexture.loadFromFile("background.jpg");
         if (hasBackground) {
-            bgTexture.setSmooth(true);
             bgSprite.setTexture(bgTexture);
-            Vector2u textureSize = bgTexture.getSize();
-            float scaleX = (float)windowWidth / textureSize.x;
-            float scaleY = (float)windowHeight / textureSize.y;
-            bgSprite.setScale(scaleX, scaleY);
-            bgSprite.setColor(Color(150, 150, 150, 255));
+            bgSprite.setScale((float)windowWidth / bgTexture.getSize().x, (float)windowHeight / bgTexture.getSize().y);
+            bgSprite.setColor(Color(150, 150, 150));
         }
 
-
-        speedMs = 300;
-        score = 0;
-        gameOver = false;
-        timer = 0;
-        loadHighScore();
-        initBoard();
-        generateNextData();
-        spawnBlock();
+        speedMs = 300; score = 0; gameOver = false; timer = 0;
+        loadHighScore(); initBoard(); generateNextData(); spawnBlock();
 
         bufMove.loadFromFile("assets/sound/move.wav");
         bufRotate.loadFromFile("assets/sound/rotate.wav");
         bufDrop.loadFromFile("assets/sound/drop.wav");
         bufLine.loadFromFile("assets/sound/line.wav");
         bufGameOver.loadFromFile("assets/sound/gameover.wav");
-
-        sMove.setBuffer(bufMove);
-        sRotate.setBuffer(bufRotate);
-        sDrop.setBuffer(bufDrop);
-        sLine.setBuffer(bufLine);
-        sGameOver.setBuffer(bufGameOver);
-
-        sMove.setVolume(50);
-        sRotate.setVolume(60);
-        sDrop.setVolume(70);
-        sLine.setVolume(80);
-        sGameOver.setVolume(90);
+        sMove.setBuffer(bufMove); sRotate.setBuffer(bufRotate);
+        sDrop.setBuffer(bufDrop); sLine.setBuffer(bufLine); sGameOver.setBuffer(bufGameOver);
 
         bgMusic.openFromFile("assets/sound/bgm.ogg");
-        bgMusic.setLoop(true);
-        bgMusic.setVolume(40);
-        bgMusic.play();
+        bgMusic.setLoop(true); bgMusic.setVolume(40); bgMusic.play();
     }
-
 
     void run() {
         while (window.isOpen()) {
@@ -446,106 +364,77 @@ public:
             Event e;
             while (window.pollEvent(e)) {
                 if (e.type == Event::Closed) window.close();
-
                 if (e.type == Event::KeyPressed) {
-                    if (e.key.code == Keyboard::Escape || e.key.code == Keyboard::Q) {
-                        window.close();
-                    }
-
+                    if (e.key.code == Keyboard::Q) window.close();
                     if (!gameOver) {
-                        if (e.key.code == Keyboard::Up || e.key.code == Keyboard::W) {
-                            rotateBlock();
-                            if (!isMuted) sRotate.play();
-                        }
-                        else if (e.key.code == Keyboard::Left || e.key.code == Keyboard::A) {
-                            if (canMove(-1, 0)) x--;
-                            if (!isMuted) sMove.play();
-                        }
-                        else if (e.key.code == Keyboard::Right || e.key.code == Keyboard::D) {
-                            if (canMove(1, 0)) x++;
-                            if (!isMuted) sMove.play();
-                        }
-                        else if (e.key.code == Keyboard::Down || e.key.code == Keyboard::S) {
-                            if (canMove(0, 1)) y++;
-                            if (!isMuted) sDrop.play();
-                        }
+                        if (e.key.code == Keyboard::W) { rotateBlock(); if (!isMuted) sRotate.play(); }
+                        if (e.key.code == Keyboard::A) { if (canMove(-1, 0)) x--; if (!isMuted) sMove.play(); }
+                        if (e.key.code == Keyboard::D) { if (canMove(1, 0)) x++; if (!isMuted) sMove.play(); }
+                        if (e.key.code == Keyboard::S) { if (canMove(0, 1)) y++; if (!isMuted) sDrop.play(); }
                         if (e.key.code == Keyboard::M) {
                             isMuted = !isMuted;
-                            if (isMuted) bgMusic.pause();
-                            else bgMusic.play();
+                            if (isMuted) bgMusic.pause(); else bgMusic.play();
                         }
                     }
                 }
             }
 
-
             if (!gameOver) {
                 if (timer > speedMs) {
                     if (canMove(0, 1)) y++;
                     else {
-                        lockBlock();
-                        removeLine();
-                        spawnBlock();
-                        if (checkGameOver()) {
-                            gameOver = true;
-                            saveHighScore();
-                            bgMusic.stop();
-                            if (!isMuted) sGameOver.play();
-                        }
+                        lockBlock(); removeLine(); spawnBlock();
+                        if (checkGameOver()) { gameOver = true; saveHighScore(); bgMusic.stop(); if (!isMuted) sGameOver.play(); }
                     }
                     timer = 0;
                 }
             }
 
 
-            window.clear(Color(20, 20, 30));
-
-            if (hasBackground) window.draw(bgSprite);
-
-
-            RectangleShape playAreaOverlay(Vector2f(W * CELL_SIZE, window.getSize().y));
-            playAreaOverlay.setPosition(OFFSET_X, 0);
-            playAreaOverlay.setFillColor(Color(0, 0, 0, 150));
-            window.draw(playAreaOverlay);
-
-
-            for (int i = 0; i < H; i++) {
-                for (int j = 0; j < W; j++) drawTile(j, i, board[i][j]);
-            }
-
-
-            if (!gameOver) {
-                int ghostY = getGhostY();
-                for (int i = 0; i < 4; i++) {
-                    for (int j = 0; j < 4; j++) {
-                        if (currentBlock[i][j] != ' ') {
-                            drawTile(x + j, ghostY + i, currentBlock[i][j], 80, true);
-                            drawTile(x + j, y + i, currentBlock[i][j]);
-                        }
-                    }
+            for (int i = 0; i < (int)particles.size(); i++) {
+                particles[i].pos += particles[i].vel;
+                particles[i].lifetime -= 4.0f; // Tốc độ mờ dần
+                if (particles[i].lifetime <= 0) {
+                    particles.erase(particles.begin() + i);
+                    i--;
                 }
             }
 
-            drawUI();
+            window.clear(Color(20, 20, 30));
+            if (hasBackground) window.draw(bgSprite);
 
-            if (gameOver) {
-                drawGameOver();
+
+            for (int i = 0; i < H; i++)
+                for (int j = 0; j < W; j++) drawTile(j, i, board[i][j]);
+
+            if (!gameOver) {
+                int gy = getGhostY();
+                for (int i = 0; i < 4; i++)
+                    for (int j = 0; j < 4; j++)
+                        if (currentBlock[i][j] != ' ') {
+                            drawTile(x + j, gy + i, currentBlock[i][j], 80, true);
+                            drawTile(x + j, y + i, currentBlock[i][j]);
+                        }
             }
 
+
+            for (const auto& p : particles) {
+                RectangleShape pRect(Vector2f(4, 4));
+                pRect.setPosition(p.pos);
+                pRect.setFillColor(Color(p.color.r, p.color.g, p.color.b, (Uint8)p.lifetime));
+                window.draw(pRect);
+            }
+
+            drawUI();
+            if (gameOver) drawGameOver();
             window.display();
         }
     }
 };
 
-
-
-
 int main() {
     srand((unsigned int)time(0));
-
-
     TetrisGame game;
     game.run();
-
     return 0;
 }
