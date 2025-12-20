@@ -58,12 +58,14 @@ private:
     float timer;
     bool gameOver;
 
+    // ======= NEW: Pause state =======
+    bool isPaused = false;
+
     sf::SoundBuffer bufMove, bufRotate, bufDrop, bufLine, bufGameOver;
     sf::Sound sMove, sRotate, sDrop, sLine, sGameOver;
     sf::Music bgMusic;
 
     bool isMuted = false;
-
 
     vector<Particle> particles;
 
@@ -89,7 +91,7 @@ private:
             for (int p = 0; p < 10; p++) {
                 Particle newP;
                 newP.pos = Vector2f(OFFSET_X + j * CELL_SIZE + CELL_SIZE / 2, gridY * CELL_SIZE + CELL_SIZE / 2);
-                
+
                 newP.vel = Vector2f((rand() % 200 - 100) / 20.0f, (rand() % 200 - 100) / 20.0f);
                 newP.lifetime = 255.0f;
                 newP.color = cellColor;
@@ -181,7 +183,7 @@ private:
                 if (board[i][j] == ' ') { full = false; break; }
 
             if (full) {
-                createParticles(i); 
+                createParticles(i);
                 linesCleared++;
                 for (int ii = i; ii > 0; ii--)
                     for (int jj = 1; jj < W - 1; jj++)
@@ -296,6 +298,10 @@ private:
         drawKeyGuide(leftX, 360, "Q", "Quit Game");
         drawKeyGuide(leftX, 415, "M", "Mute/Unmute");
 
+        // ======= NEW: P + R guide (added without changing old layout) =======
+        drawKeyGuide(leftX, 470, "P", "Pause Game");
+        drawKeyGuide(leftX, 525, "R", "Restart Game");
+
         float rightX = OFFSET_X + (W * CELL_SIZE) + 35;
         Text title("STATISTICS", font, 25);
         title.setFillColor(Color::Cyan);
@@ -323,6 +329,63 @@ private:
         overText.setOrigin(tr.width / 2, tr.height / 2);
         overText.setPosition(window.getSize().x / 2, window.getSize().y / 2);
         window.draw(overText);
+    }
+
+    // ======= NEW: Pause overlay (same style idea as Game Over) =======
+    void drawPause() {
+        RectangleShape overlay(Vector2f(window.getSize().x, window.getSize().y));
+        overlay.setFillColor(Color(0, 0, 0, 200));
+        window.draw(overlay);
+
+        Text pauseText("PAUSE GAME", font, 50);
+        pauseText.setFillColor(Color::Yellow);
+        FloatRect tr = pauseText.getLocalBounds();
+        pauseText.setOrigin(tr.width / 2, tr.height / 2);
+        pauseText.setPosition(window.getSize().x / 2, window.getSize().y / 2);
+        window.draw(pauseText);
+    }
+
+    // ======= NEW: Pause/Resume sound control =======
+    void pauseAllSounds() {
+        // Requirement: when pause -> sound off
+        // Stop SFX currently playing
+        sMove.stop();
+        sRotate.stop();
+        sDrop.stop();
+        sLine.stop();
+        sGameOver.stop();
+
+        // Pause music
+        bgMusic.pause();
+    }
+
+    void resumeAllSounds() {
+        // Only resume music if user is NOT muted
+        if (!isMuted) bgMusic.play();
+    }
+
+    // ======= NEW: Restart function (reset game state) =======
+    void restartGame() {
+        // Reset gameplay
+        score = 0;
+        speedMs = 300;
+        timer = 0;
+        gameOver = false;
+        isPaused = false;
+
+        // Clear effects
+        particles.clear();
+
+        // Reset board + blocks
+        initBoard();
+        generateNextData();
+        spawnBlock();
+
+        // Restart music from beginning (sound reset)
+        bgMusic.stop();
+        if (!isMuted) {
+            bgMusic.play();
+        }
     }
 
 public:
@@ -359,54 +422,86 @@ public:
         while (window.isOpen()) {
             float time = clock.getElapsedTime().asSeconds();
             clock.restart();
-            timer += time * 1000;
+
+            // ======= keep timer update ONLY when not paused =======
+            if (!isPaused) timer += time * 1000;
 
             Event e;
             while (window.pollEvent(e)) {
                 if (e.type == Event::Closed) window.close();
                 if (e.type == Event::KeyPressed) {
                     if (e.key.code == Keyboard::Q) window.close();
-                    if (!gameOver) {
+
+                    // ======= NEW: Restart always works (even paused / gameover) =======
+                    if (e.key.code == Keyboard::R) {
+                        restartGame();
+                    }
+
+                    // ======= NEW: Pause toggle (only if not game over) =======
+                    if (e.key.code == Keyboard::P && !gameOver) {
+                        isPaused = !isPaused;
+                        if (isPaused) {
+                            pauseAllSounds();
+                        }
+                        else {
+                            resumeAllSounds();
+                        }
+                    }
+
+                    // ======= block controls when gameOver OR paused =======
+                    if (!gameOver && !isPaused) {
                         if (e.key.code == Keyboard::W) { rotateBlock(); if (!isMuted) sRotate.play(); }
                         if (e.key.code == Keyboard::A) { if (canMove(-1, 0)) x--; if (!isMuted) sMove.play(); }
                         if (e.key.code == Keyboard::D) { if (canMove(1, 0)) x++; if (!isMuted) sMove.play(); }
                         if (e.key.code == Keyboard::S) { if (canMove(0, 1)) y++; if (!isMuted) sDrop.play(); }
                         if (e.key.code == Keyboard::M) {
                             isMuted = !isMuted;
-                            if (isMuted) bgMusic.pause(); else bgMusic.play();
+                            if (isMuted) bgMusic.pause();
+                            else {
+                                // only play if not paused
+                                if (!isPaused) bgMusic.play();
+                            }
                         }
                     }
                 }
             }
 
-            if (!gameOver) {
+            // ======= game update ONLY when not paused =======
+            if (!gameOver && !isPaused) {
                 if (timer > speedMs) {
                     if (canMove(0, 1)) y++;
                     else {
                         lockBlock(); removeLine(); spawnBlock();
-                        if (checkGameOver()) { gameOver = true; saveHighScore(); bgMusic.stop(); if (!isMuted) sGameOver.play(); }
+                        if (checkGameOver()) {
+                            gameOver = true;
+                            saveHighScore();
+                            bgMusic.stop();
+                            if (!isMuted) sGameOver.play();
+                        }
                     }
                     timer = 0;
                 }
             }
 
-
-            for (int i = 0; i < (int)particles.size(); i++) {
-                particles[i].pos += particles[i].vel;
-                particles[i].lifetime -= 4.0f; // Tốc độ mờ dần
-                if (particles[i].lifetime <= 0) {
-                    particles.erase(particles.begin() + i);
-                    i--;
+            // ======= particles update ONLY when not paused (optional, keep visual stable) =======
+            if (!isPaused) {
+                for (int i = 0; i < (int)particles.size(); i++) {
+                    particles[i].pos += particles[i].vel;
+                    particles[i].lifetime -= 4.0f; // Tốc độ mờ dần
+                    if (particles[i].lifetime <= 0) {
+                        particles.erase(particles.begin() + i);
+                        i--;
+                    }
                 }
             }
 
             window.clear(Color(20, 20, 30));
             if (hasBackground) window.draw(bgSprite);
 
-
             for (int i = 0; i < H; i++)
                 for (int j = 0; j < W; j++) drawTile(j, i, board[i][j]);
 
+            // ======= ghost + current block only when not gameover =======
             if (!gameOver) {
                 int gy = getGhostY();
                 for (int i = 0; i < 4; i++)
@@ -417,7 +512,6 @@ public:
                         }
             }
 
-
             for (const auto& p : particles) {
                 RectangleShape pRect(Vector2f(4, 4));
                 pRect.setPosition(p.pos);
@@ -426,7 +520,11 @@ public:
             }
 
             drawUI();
+
+            // ======= overlays: pause on top, then gameover =======
+            if (isPaused && !gameOver) drawPause();
             if (gameOver) drawGameOver();
+
             window.display();
         }
     }
